@@ -1,0 +1,85 @@
+server default {
+    listen {
+        type = auth
+        ipaddr = *
+        port = 0
+        limit {
+            max_connections = 16
+            lifetime = 0
+            idle_timeout = 30
+        }
+    }
+
+    listen {
+        type = acct
+        ipaddr = *
+        port = 0
+        limit {
+            idle_timeout = 30
+            lifetime = 0
+            max_connections = 16
+        }
+    }
+
+    listen {
+        type = coa
+        ipaddr = *
+        port = 3799
+        limit {
+            max_connections = 16
+            lifetime = 0
+            idle_timeout = 30
+        }
+    }
+
+    authorize {
+        rest
+        if (ok) {
+            update control {
+                Auth-Type := rest
+            }
+        }
+        expiration
+        logintime
+    }
+
+    authenticate {
+        Auth-Type rest {
+            rest {
+                updated = 1
+            }
+            if (updated) {
+                ok
+            }
+        }
+    }
+
+    preacct {
+        preprocess
+        acct_unique
+        suffix
+        update request {
+            FreeRADIUS-Acct-Session-Start-Time = "%{expr: %l - %{%{Acct-Session-Time}:-0}}"
+        }
+    }
+
+    accounting {
+        rest
+    }
+
+    post-auth {
+        rest
+        update {
+            &reply: += &session-state:
+        }
+    }
+
+    post-auth-type Challenge {
+    }
+
+    pre-proxy {
+    }
+
+    post-proxy {
+    }
+}

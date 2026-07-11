@@ -1,0 +1,14 @@
+.git
+.gitmodules
+.github
+.env
+.env.example
+.vscode
+.idea
+*.md
+ui/ui/compiled
+ui/cache
+system/cache
+docs
+phpnuxbill.wiki
+phpnuxbill-mikrotik-login-template

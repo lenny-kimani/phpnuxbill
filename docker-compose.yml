@@ -1,0 +1,87 @@
+services:
+  rofa-mysql:
+    image: mysql:8.0
+    container_name: rofa-mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - rofa_mysql_data:/var/lib/mysql
+      - ./docker/mysql/rofa.cnf:/etc/mysql/conf.d/rofa.cnf:ro
+    networks:
+      - rofa_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rofa-phpnuxbill:
+    build:
+      context: .
+      dockerfile: docker/phpnuxbill/Dockerfile
+    image: rofa-phpnuxbill:latest
+    container_name: rofa-phpnuxbill
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      TZ: Africa/Nairobi
+    depends_on:
+      rofa-mysql:
+        condition: service_healthy
+    networks:
+      - rofa_network
+    volumes:
+      - rofa_uploads:/var/www/html/system/uploads
+
+  rofa-freeradius:
+    build:
+      context: .
+      dockerfile: docker/freeradius/Dockerfile
+    image: rofa-freeradius:latest
+    container_name: rofa-freeradius
+    restart: unless-stopped
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+      - "3799:3799/udp"
+    environment:
+      RADIUS_SECRET: ${RADIUS_SECRET}
+      PHPNUXBILL_URL: ${PHPNUXBILL_URL}
+    depends_on:
+      - rofa-phpnuxbill
+    networks:
+      - rofa_network
+
+  rofa-coa:
+    build:
+      context: .
+      dockerfile: docker/radclient/Dockerfile
+    image: rofa-coa:latest
+    container_name: rofa-coa
+    restart: unless-stopped
+    environment:
+      RADIUS_SERVER: rofa-freeradius
+      RADIUS_COA_PORT: 3799
+      RADIUS_SECRET: ${RADIUS_SECRET}
+    depends_on:
+      - rofa-freeradius
+    networks:
+      - rofa_network
+
+volumes:
+  rofa_mysql_data:
+  rofa_uploads:
+
+networks:
+  rofa_network:
+    driver: bridge

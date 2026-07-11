@@ -16,6 +16,8 @@ system/paymentgateway/**
 !system/paymentgateway/ui/
 !system/paymentgateway/ui/index.html
 !system/paymentgateway/index.html
+!system/paymentgateway/mpesa.php
+!system/paymentgateway/mpesa/
 !system/plugin/ui/
 system/plugin/ui/*
 !system/plugin/ui/index.html
@@ -50,6 +52,10 @@ system/devices/**
 !system/devices/MikrotikHotspot.php
 /.vs
 docker-compose.yml
+!docker-compose.yml
+.env
+.env.*
+!*.env.example
 docs/**
 !docs/*.html
 !docs/*.md
