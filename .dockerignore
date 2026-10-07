@@ -6,6 +6,7 @@
 .vscode
 .idea
 *.md
+.commandcode
 ui/ui/compiled
 ui/cache
 system/cache

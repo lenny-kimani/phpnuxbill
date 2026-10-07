@@ -28,12 +28,16 @@ services:
     container_name: rofa-phpnuxbill
     restart: unless-stopped
     ports:
-      - "8000:80"
+      - "8080:80"
     environment:
       DB_HOST: ${DB_HOST}
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      RADIUS_DB_HOST: ${RADIUS_DB_HOST:-${DB_HOST}}
+      RADIUS_DB_NAME: ${RADIUS_DB_NAME:-${DB_NAME}}
+      RADIUS_DB_USER: ${RADIUS_DB_USER:-${DB_USER}}
+      RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD:-${DB_PASSWORD}}
       TZ: Africa/Nairobi
     depends_on:
       rofa-mysql:

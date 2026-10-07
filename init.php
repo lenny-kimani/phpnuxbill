@@ -139,10 +139,23 @@ if (empty($http_proxy) && !empty($config['http_proxy'])) {
 }
 date_default_timezone_set($config['timezone']);
 
-if ((!empty($radius_user) && $config['radius_enable']) || _post('radius_enable')) {
+if ($config['radius_enable'] || _post('radius_enable')) {
     if (!empty($radius_password)) {
         // compability for old version
         $radius_pass = $radius_password;
+    }
+    // Fall back to the main application database when no RADIUS credentials are configured.
+    if (empty($radius_host)) {
+        $radius_host = $db_host;
+    }
+    if (empty($radius_name)) {
+        $radius_name = $db_name;
+    }
+    if (empty($radius_user)) {
+        $radius_user = $db_user;
+    }
+    if (empty($radius_pass)) {
+        $radius_pass = $db_pass;
     }
     ORM::configure("mysql:host=$radius_host;dbname=$radius_name", null, 'radius');
     ORM::configure('username', $radius_user, 'radius');

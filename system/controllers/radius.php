@@ -16,6 +16,10 @@ if (!in_array($admin['user_type'], ['SuperAdmin', 'Admin'])) {
     _alert(Lang::T('You do not have permission to access this page'), 'danger', "dashboard");
 }
 
+if (empty($config['radius_enable']) || $config['radius_enable'] == 'false' || $config['radius_enable'] == '0') {
+    _alert(Lang::T('RADIUS is not enabled'), 'danger', "dashboard");
+}
+
 switch ($action) {
 
     case 'nas-add':
