@@ -491,7 +491,13 @@ class Radius
          * Fix loop to all Nas but still detecting Hotspot Multylogin from other Nas
          */
         $act = ORM::for_table('radacct')->where_raw("acctstoptime IS NULL")->where('username', $username)->find_one();
+        if (!$act) {
+            return [];
+        }
         $nas = $this->getTableNas()->where('nasname', $act['nasipaddress'])->find_many();
+        if (!$nas || count($nas) == 0) {
+            return [];
+        }
         $count = count($nas) * 15;
         set_time_limit($count);
         $result = [];
@@ -500,7 +506,8 @@ class Radius
             if (!empty($n['ports'])) {
                 $port = $n['ports'];
             }
-            $result[] = $n['nasname'] . ': ' . @shell_exec("echo 'User-Name = $username,Framed-IP-Address = " . $act['framedipaddress'] . "' | radclient -x " . trim($n['nasname']) . ":$port disconnect '" . $n['secret'] . "'");
+            $framedip = $act['framedipaddress'];
+            $result[] = $n['nasname'] . ': ' . @shell_exec("printf 'User-Name = \"$username\"\\nFramed-IP-Address = $framedip\\n' | radclient -x " . trim($n['nasname']) . ":$port disconnect '" . $n['secret'] . "' 2>&1");
         }
         return $result;
     }
