@@ -34,9 +34,13 @@ switch ($action) {
             if ($router == 'radius') {
                 $_SESSION['nux-router'] = 'radius';
             } else {
-                $r = ORM::for_table('tbl_routers')->find_one($router);
+                $r = is_numeric($router)
+                    ? ORM::for_table('tbl_routers')->find_one((int) $router)
+                    : ORM::for_table('tbl_routers')->where('name', $router)->find_one();
                 if ($r) {
                     $_SESSION['nux-router'] = $r['id'];
+                } else {
+                    unset($_SESSION['nux-router']);
                 }
             }
         }
@@ -79,6 +83,14 @@ switch ($action) {
         break;
 
     case 'pay':
+        // Load the M-Pesa gateway functions before using them.
+        $gatewayFile = $PAYMENTGATEWAY_PATH . DIRECTORY_SEPARATOR . 'mpesa.php';
+        if (!file_exists($gatewayFile)) {
+            _msglog('e', Lang::T('M-Pesa gateway not installed'));
+            r2(getUrl('mpesa_guest/init'));
+        }
+        require_once $gatewayFile;
+
         // Validate form.
         if (!Csrf::check(_post('csrf_token'))) {
             _msglog('e', Lang::T('Invalid or Expired CSRF Token'));
@@ -113,14 +125,27 @@ switch ($action) {
             $routerId = $router['id'];
         }
 
-        // Prevent duplicate pending transactions for the same phone.
+        // Prevent duplicate pending transactions for the same phone, but allow a
+        // retry if the previous transaction is expired or failed/cancelled.
         $existing = ORM::for_table('tbl_payment_gateway')
             ->where('username', $phone)
             ->where('gateway', 'mpesa')
             ->where('status', 1)
             ->find_one();
         if ($existing) {
-            r2(getUrl('mpesa_guest/wait/' . $existing['id']), 'w', Lang::T("You already have a pending payment"));
+            $isExpired = !empty($existing['expired_date']) && strtotime($existing['expired_date']) < time();
+            if (!$isExpired) {
+                r2(getUrl('mpesa_guest/wait/' . $existing['id']), 'w', Lang::T("You already have a pending payment"));
+            }
+            // Try to resolve the stale transaction with Daraja; if it is still pending
+            // we keep the existing one, otherwise we mark it and continue.
+            $resolved = mpesa_resolve_pending_transaction($existing);
+            if ($resolved === 'pending') {
+                r2(getUrl('mpesa_guest/wait/' . $existing['id']), 'w', Lang::T("You already have a pending payment"));
+            }
+            // Mark it as failed so the user can retry with a fresh STK push.
+            $existing->status = 3;
+            $existing->save();
         }
 
         // Create the transaction record.
@@ -136,6 +161,7 @@ switch ($action) {
         $d->payment_method = 'M-Pesa STK Push';
         $d->payment_channel = $phone;
         $d->created_date = date('Y-m-d H:i:s');
+        $d->expired_date = date('Y-m-d H:i:s', strtotime('+15 minutes'));
         $d->status = 1;
         $d->save();
         $trxId = $d->id();
@@ -163,17 +189,9 @@ switch ($action) {
             'phonenumber' => $phone,
         ];
 
-        // Ensure the gateway file is loaded.
-        $gatewayFile = $PAYMENTGATEWAY_PATH . DIRECTORY_SEPARATOR . 'mpesa.php';
-        if (!file_exists($gatewayFile)) {
-            _msglog('e', Lang::T('M-Pesa gateway not installed'));
-            r2(getUrl('mpesa_guest/init'));
-        }
-        require_once $gatewayFile;
-
         // Validate gateway configuration and initiate STK push.
         mpesa_validate_config();
-        mpesa_create_transaction($d, $guestUser);
+        mpesa_create_transaction($d, $guestUser, getUrl('mpesa_guest/init'));
 
         // If the gateway did not redirect, go to the waiting page.
         r2(getUrl('mpesa_guest/wait/' . $trxId), 's', Lang::T('STK push sent. Please check your phone.'));
@@ -226,9 +244,29 @@ switch ($action) {
             exit;
         }
 
+        require_once $PAYMENTGATEWAY_PATH . DIRECTORY_SEPARATOR . 'mpesa.php';
+
+        $resolved = null;
+        if ($trx['status'] == 1) {
+            // Ask Daraja for the current status before telling the user to keep waiting.
+            $resolved = mpesa_resolve_pending_transaction($trx);
+            // Refresh the transaction object after resolve may have changed it.
+            $trx = ORM::for_table('tbl_payment_gateway')->find_one($trxId);
+            if (!$trx) {
+                echo json_encode(['status' => 'error', 'message' => Lang::T('Transaction not found')]);
+                exit;
+            }
+
+            // If Daraja could not be reached and the transaction has expired,
+            // mark it as failed so the user can retry instead of waiting forever.
+            if ($resolved === 'error' && !empty($trx['expired_date']) && strtotime($trx['expired_date']) < time()) {
+                $trx->status = 3;
+                $trx->save();
+            }
+        }
+
         if ($trx['status'] == 2) {
             // Already paid; ensure activation has run.
-            require_once $PAYMENTGATEWAY_PATH . DIRECTORY_SEPARATOR . 'mpesa.php';
             $user = mpesa_process_successful_payment($trx);
 
             $password = '';
