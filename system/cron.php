@@ -37,6 +37,14 @@ while ($row = $statement->fetch(PDO::FETCH_ASSOC)) {
 
 $_c = $config;
 
+// Resolve any stale M-Pesa STK push transactions so guests can retry.
+if (file_exists($PAYMENTGATEWAY_PATH . DIRECTORY_SEPARATOR . 'mpesa.php')) {
+    require_once $PAYMENTGATEWAY_PATH . DIRECTORY_SEPARATOR . 'mpesa.php';
+    $resolved = mpesa_cleanup_pending_transactions(15);
+    if ($resolved > 0) {
+        echo "Resolved $resolved stale M-Pesa transaction(s)\n";
+    }
+}
 
 $textExpired = Lang::getNotifText('expired');
 

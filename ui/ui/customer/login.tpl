@@ -1,104 +1,62 @@
 {include file="customer/header-public.tpl"}
 
-<div class="hidden-xs" style="height:100px"></div>
-<div class="row">
-    <div class="col-sm-6 col-sm-offset-1">
-        <div class="panel panel-info">
-            <div class="panel-heading">{Lang::T('Announcement')}</div>
-            <div class="panel-body">
-                {$Announcement = "{$PAGES_PATH}/Announcement.html"}
-                {if file_exists($Announcement)}
-                    {include file=$Announcement}
+<div class="rofa-page">
+    <p class="rofa-hint" style="text-align:center; margin-bottom:18px; font-size:1.05rem; color:rgba(255,255,255,0.85);">
+        {Lang::T('Fast and reliable internet')}
+    </p>
+
+    <div class="rofa-card">
+        <div class="rofa-card-header">
+            {Lang::T('Log in to Member Panel')}
+        </div>
+        <div class="rofa-card-body">
+            <p class="rofa-hint" style="margin-top:0; margin-bottom:18px;">
+                {Lang::T('Login to buy a voucher for later use or connect through our hotspots for immediate use.')}
+            </p>
+
+            <form action="{Text::url('login/post')}" method="post">
+                <input type="hidden" name="csrf_token" value="{$csrf_token}">
+
+                <label class="rofa-label">
+                    {if $_c['registration_username'] == 'phone'}
+                        {Lang::T('Phone Number')}
+                    {elseif $_c['registration_username'] == 'email'}
+                        {Lang::T('Email')}
+                    {else}
+                        {Lang::T('Usernames')}
+                    {/if}
+                </label>
+                <input type="text" class="rofa-input" name="username"
+                    placeholder="{if $_c['country_code_phone']!= '' || $_c['registration_username'] == 'phone'}{$_c['country_code_phone']} {Lang::T('Phone Number')}{elseif $_c['registration_username'] == 'email'}{Lang::T('Email')}{else}{Lang::T('Usernames')}{/if}">
+
+                <label class="rofa-label">{Lang::T('Password')}</label>
+                <input type="password" class="rofa-input" name="password" placeholder="{Lang::T('Password')}">
+
+                <button type="submit" class="rofa-btn rofa-btn-primary">{Lang::T('Login')}</button>
+
+                {if $_c['disable_registration'] != 'noreg'}
+                    <a href="{Text::url('register')}" class="rofa-btn rofa-btn-outline" style="margin-top:10px;">
+                        {Lang::T('Register')}
+                    </a>
                 {/if}
+            </form>
+
+            <div style="text-align:center; margin-top:16px;">
+                <a href="{Text::url('forgot')}" class="rofa-link">{Lang::T('Forgot Password')}</a>
             </div>
         </div>
     </div>
-    <div class="col-sm-4">
-        <div class="panel panel-primary">
-            <div class="panel-heading">{Lang::T('Log in to Member Panel')}</div>
-            <div class="panel-body">
-                <form action="{Text::url('login/post')}" method="post">
-                    <input type="hidden" name="csrf_token" value="{$csrf_token}">
-                    <div class="form-group">
-                        <label>
-                            {if $_c['registration_username'] == 'phone'}
-                                {Lang::T('Phone Number')}
-                            {elseif $_c['registration_username'] == 'email'}
-                                {Lang::T('Email')}
-                            {else}
-                                {Lang::T('Usernames')}
-                            {/if}
-                        </label>
-                        <div class="input-group">
-                            {if $_c['registration_username'] == 'phone'}
-                                <span class="input-group-addon" id="basic-addon1"><i
-                                        class="glyphicon glyphicon-phone-alt"></i></span>
-                            {elseif $_c['registration_username'] == 'email'}
-                                <span class="input-group-addon" id="basic-addon1"><i
-                                        class="glyphicon glyphicon-envelope"></i></span>
-                            {else}
-                                <span class="input-group-addon" id="basic-addon1"><i
-                                        class="glyphicon glyphicon-user"></i></span>
-                            {/if}
-                            <input type="text" class="form-control" name="username"
-                                placeholder="{if $_c['country_code_phone']!= '' || $_c['registration_username'] == 'phone'}{$_c['country_code_phone']} {Lang::T('Phone Number')}{elseif $_c['registration_username'] == 'email'}{Lang::T('Email')}{else}{Lang::T('Usernames')}{/if}">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>{Lang::T('Password')}</label>
-                        <div class="input-group">
-                            <span class="input-group-addon" id="basic-addon2"><i
-                                    class="glyphicon glyphicon-lock"></i></span>
-                            <input type="password" class="form-control" name="password"
-                                placeholder="{Lang::T('Password')}">
-                        </div>
-                    </div>
 
-                    <div class="clearfix hidden">
-                        <div class="{$app_url}/ui-checkbox ui-checkbox-primary right">
-                            <label>
-                                <input type="checkbox">
-                                <span>Remember me</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="btn-group btn-group-justified mb15">
-                        {if $_c['disable_registration'] != 'noreg'}
-                            <div class="btn-group">
-                                <a href="{Text::url('register')}" class="btn btn-success">{Lang::T('Register')}</a>
-                            </div>
-                        {/if}
-                        <div class="btn-group">
-                            <button type="submit" class="btn btn-primary">{Lang::T('Login')}</button>
-                        </div>
-                    </div>
-                    <br>
-                    <center>
-                        <a href="{Text::url('forgot')}" class="btn btn-link">{Lang::T('Forgot Password')}</a>
-                        <br>
-                        <a href="javascript:showPrivacy()">Privacy</a>
-                        &bull;
-                        <a href="javascript:showTaC()">T &amp; C</a>
-                    </center>
-                </form>
-            </div>
-        </div>
+    <div style="text-align:center; margin-bottom:16px;">
+        <a href="https://sovika.xyz" target="_blank" rel="noopener noreferrer" class="rofa-sovika">
+            &#x1F680; {Lang::T('Powered by Sovika Technologies')}
+        </a>
     </div>
-</div>
 
-<!-- Modal -->
-<div class="modal fade" id="HTMLModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
-                        aria-hidden="true">&times;</span></button>
-            </div>
-            <div class="modal-body" id="HTMLModal_konten"></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">&times;</button>
-            </div>
-        </div>
+    <div class="rofa-footer">
+        <a href="javascript:showPrivacy()">Privacy</a>
+        &nbsp;&bull;&nbsp;
+        <a href="javascript:showTaC()">T &amp; C</a>
     </div>
 </div>
 

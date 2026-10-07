@@ -1,0 +1,5 @@
+# Local submodule: push system/paymentgateway/mpesa to a remote repository
+# and update this URL before cloning on another machine.
+[submodule "system/paymentgateway/mpesa"]
+        path = system/paymentgateway/mpesa
+        url = ./system/paymentgateway/mpesa

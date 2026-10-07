@@ -20,6 +20,9 @@
                         <div class="col-md-6">
                             <select id="server" name="server" class="form-control select2">
                                 <option value=''>{Lang::T('Select Routers')}</option>
+                                {foreach $r as $router}
+                                    <option value="{$router['name']}">{$router['name']}</option>
+                                {/foreach}
                             </select>
                         </div>
                     </div>
@@ -28,6 +31,9 @@
                         <div class="col-md-6">
                             <select id="plan" name="plan" class="form-control select2">
                                 <option value=''>{Lang::T('Select Plans')}</option>
+                                {foreach $p as $plan}
+                                    <option value="{$plan['id']}" data-type="{$plan['type']}">{$plan['name_plan']} ({$plan['type']})</option>
+                                {/foreach}
                             </select>
                         </div>
                     </div>
@@ -107,6 +113,32 @@
 <!-- /voucher-add -->
 
 <script>
+    function filterPlans() {
+        var typeHot = document.getElementById('Hot');
+        var typePPPOE = document.getElementById('POE');
+        var planSelect = document.getElementById('plan');
+        var selectedType = typeHot.checked ? 'Hotspot' : (typePPPOE.checked ? 'PPPOE' : '');
+
+        for (var i = 0; i < planSelect.options.length; i++) {
+            var option = planSelect.options[i];
+            if (option.value === '') {
+                continue;
+            }
+            var planType = option.getAttribute('data-type');
+            option.style.display = (!selectedType || planType === selectedType) ? 'block' : 'none';
+        }
+
+        // Reset selection if the currently selected option is hidden.
+        var selectedOption = planSelect.options[planSelect.selectedIndex];
+        if (selectedOption && selectedOption.style.display === 'none') {
+            planSelect.value = '';
+        }
+    }
+
+    document.getElementById('Hot').addEventListener('change', filterPlans);
+    document.getElementById('POE').addEventListener('change', filterPlans);
+    filterPlans();
+
     function showVouchersPerPage() {
         var printNow = document.getElementById('print_now');
         var printers = document.getElementById('printers');

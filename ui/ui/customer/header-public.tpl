@@ -14,17 +14,17 @@
     <link rel="stylesheet" href="{$app_url}/ui/ui/styles/bootstrap.min.css">
     <link rel="stylesheet" href="{$app_url}/ui/ui/styles/modern-AdminLTE.min.css">
     <link rel="stylesheet" href="{$app_url}/ui/ui/styles/sweetalert2.min.css" />
+    <link rel="stylesheet" href="{$app_url}/ui/ui/styles/rofa.customer.css" />
     <script src="{$app_url}/ui/ui/scripts/sweetalert2.all.min.js"></script>
 
 
 
 </head>
 
-<body id="app" class="app off-canvas body-full">
+<body id="app" class="app off-canvas body-full rofa-theme">
     <div class="container">
-        <div class="form-head mb20">
-            <h1 class="site-logo h2 mb5 mt5 text-center text-uppercase text-bold"
-                style="text-shadow: 2px 2px 4px #757575;">{$_c['CompanyName']}</h1>
+        <div class="form-head mb20 rofa-form-head">
+            <h1 class="site-logo h2 mb5 mt5 text-center text-uppercase text-bold">{$_c['CompanyName']}</h1>
             <hr>
         </div>
         {if isset($notify)}

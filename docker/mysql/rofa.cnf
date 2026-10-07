@@ -1,0 +1,5 @@
+[mysqld]
+# Disable SSL/TLS for the local Docker network so PHPNuxBill and FreeRADIUS
+# clients can connect without certificate verification.
+ssl=0
+require_secure_transport=OFF

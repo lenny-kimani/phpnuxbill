@@ -31,8 +31,10 @@ class MikrotikHotspot
 
     function add_customer($customer, $plan)
     {
-        $mikrotik = $this->info($plan['routers']);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($plan['routers']);
+        if (!$client) {
+            return;
+        }
 		$isExp = ORM::for_table('tbl_plans')->select("id")->where('plan_expired', $plan['id'])->find_one();
         $this->removeHotspotUser($client, $customer['username']);
 		if ($isExp){
@@ -43,8 +45,10 @@ class MikrotikHotspot
 	
 	function sync_customer($customer, $plan)
 	{
-		$mikrotik = $this->info($plan['routers']);
-		$client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+		$client = $this->getClientForRouter($plan['routers']);
+		if (!$client) {
+			return;
+		}
 		$t = ORM::for_table('tbl_user_recharges')->where('username', $customer['username'])->where('status', 'on')->find_one();
 		if ($t) {
 			$printRequest = new RouterOS\Request('/ip/hotspot/user/print');
@@ -68,8 +72,10 @@ class MikrotikHotspot
 
     function remove_customer($customer, $plan)
     {
-        $mikrotik = $this->info($plan['routers']);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($plan['routers']);
+        if (!$client) {
+            return;
+        }
         if (!empty($plan['plan_expired'])) {
             $p = ORM::for_table("tbl_plans")->find_one($plan['plan_expired']);
             if($p){
@@ -85,8 +91,10 @@ class MikrotikHotspot
     // customer change username
     public function change_username($plan, $from, $to)
     {
-        $mikrotik = $this->info($plan['routers']);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($plan['routers']);
+        if (!$client) {
+            return;
+        }
         //check if customer exists
         $printRequest = new RouterOS\Request('/ip/hotspot/user/print');
         $printRequest->setArgument('.proplist', '.id');
@@ -105,8 +113,10 @@ class MikrotikHotspot
 
     function add_plan($plan)
     {
-        $mikrotik = $this->info($plan['routers']);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($plan['routers']);
+        if (!$client) {
+            return;
+        }
         $bw = ORM::for_table("tbl_bandwidth")->find_one($plan['id_bw']);
         if ($bw['rate_down_unit'] == 'Kbps') {
             $unitdown = 'K';
@@ -136,8 +146,10 @@ class MikrotikHotspot
 
     function online_customer($customer, $router_name)
     {
-        $mikrotik = $this->info($router_name);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($router_name);
+        if (!$client) {
+            return null;
+        }
         $printRequest = new RouterOS\Request(
             '/ip hotspot active print',
             RouterOS\Query::where('user', $customer['username'])
@@ -148,8 +160,10 @@ class MikrotikHotspot
 
     function connect_customer($customer, $ip, $mac_address, $router_name)
     {
-        $mikrotik = $this->info($router_name);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($router_name);
+        if (!$client) {
+            return;
+        }
         $addRequest = new RouterOS\Request('/ip/hotspot/active/login');
         $client->sendSync(
             $addRequest
@@ -162,8 +176,10 @@ class MikrotikHotspot
 
     function disconnect_customer($customer, $router_name)
     {
-        $mikrotik = $this->info($router_name);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($router_name);
+        if (!$client) {
+            return;
+        }
         $printRequest = new RouterOS\Request(
             '/ip hotspot active print',
             RouterOS\Query::where('user', $customer['username'])
@@ -179,8 +195,10 @@ class MikrotikHotspot
 
     function update_plan($old_plan, $new_plan)
     {
-        $mikrotik = $this->info($new_plan['routers']);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($new_plan['routers']);
+        if (!$client) {
+            return;
+        }
 
         $printRequest = new RouterOS\Request(
             '/ip hotspot user profile print .proplist=.id',
@@ -223,8 +241,10 @@ class MikrotikHotspot
 
     function remove_plan($plan)
     {
-        $mikrotik = $this->info($plan['routers']);
-        $client = $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        $client = $this->getClientForRouter($plan['routers']);
+        if (!$client) {
+            return;
+        }
         $printRequest = new RouterOS\Request(
             '/ip hotspot user profile print .proplist=.id',
             RouterOS\Query::where('name', $plan['name_plan'])
@@ -240,6 +260,32 @@ class MikrotikHotspot
     function info($name)
     {
         return ORM::for_table('tbl_routers')->where('name', $name)->find_one();
+    }
+
+    /**
+     * Build a RouterOS client for a configured router, validating the router
+     * exists and has credentials before attempting a connection.
+     *
+     * @param string $router_name Router name from tbl_routers.
+     * @return RouterOS\Client|null Client on success, null if router is missing or invalid.
+     */
+    function getClientForRouter($router_name)
+    {
+        if (empty($router_name)) {
+            _log('MikrotikHotspot: router name is empty, skipping RouterOS operation');
+            return null;
+        }
+        $mikrotik = $this->info($router_name);
+        if (!$mikrotik || empty($mikrotik['ip_address']) || empty($mikrotik['username'])) {
+            _log('MikrotikHotspot: router not found or missing credentials: ' . $router_name);
+            return null;
+        }
+        try {
+            return $this->getClient($mikrotik['ip_address'], $mikrotik['username'], $mikrotik['password']);
+        } catch (Throwable $e) {
+            _log('MikrotikHotspot: failed to connect to router ' . $router_name . ': ' . $e->getMessage());
+            return null;
+        }
     }
 
     function getClient($ip, $user, $pass)
