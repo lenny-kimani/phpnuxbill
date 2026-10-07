@@ -26,11 +26,13 @@ radiusd -XC
 
 # Wait for PHPNuxBill to be reachable; the REST module instantiates a
 # connection at startup and will fail if the backend is unavailable.
+# A 401 response means the endpoint is up and replying, which is enough.
 CHECK_URL="$PHP_URL/radius.php?action=authenticate"
 echo "Waiting for PHPNuxBill REST backend at $PHP_URL ..."
 for i in $(seq 1 60); do
-    if curl -fsS -m 2 "$CHECK_URL" >/dev/null 2>&1; then
-        echo "PHPNuxBill REST backend is reachable."
+    http_code=$(curl -s -o /dev/null -m 2 -w "%{http_code}" "$CHECK_URL" 2>/dev/null || echo "000")
+    if [ "$http_code" = "401" ] || [ "$http_code" = "204" ] || [ "$http_code" = "200" ]; then
+        echo "PHPNuxBill REST backend is reachable (HTTP $http_code)."
         break
     fi
     sleep 2

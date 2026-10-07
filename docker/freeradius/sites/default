@@ -77,6 +77,18 @@ server default {
     post-auth-type Challenge {
     }
 
+    recv-coa {
+        ok
+    }
+
+    coa {
+        ok
+    }
+
+    disconnect {
+        ok
+    }
+
     pre-proxy {
     }
 
