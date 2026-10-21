@@ -43,7 +43,8 @@
             <input type="tel" class="rofa-input" name="phone" required
               placeholder="e.g. 0712345678 or 254712345678"
               pattern="{literal}^\+?(?:254|0)?[17][0-9]{8}${/literal}"
-              autocomplete="tel" />
+              autocomplete="tel"
+              style="background:#ffffff; color:#000000; -webkit-text-fill-color:#000000; caret-color:#000000;" />
             <button type="submit" class="rofa-btn rofa-btn-primary">
               {Lang::T('Pay with M-Pesa')}
             </button>
@@ -68,6 +69,12 @@
 
   <div class="rofa-contact">
     {Lang::T('Need help? Contact support')}
+  </div>
+
+  <div style="text-align:center; margin:14px 0;">
+    <a href="{Text::url('mpesa_guest/retrieve')}" class="rofa-sovika">
+      &#x1F50D; {Lang::T('Already paid? Get your voucher')}
+    </a>
   </div>
 
   <div style="text-align:center; margin:16px 0;">

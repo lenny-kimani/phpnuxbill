@@ -100,6 +100,18 @@
       <div class="spinner"></div>
       <p class="status-text">{Lang::T('Please check your phone and enter your M-Pesa PIN.')}</p>
       <p class="status-subtext" id="statusText">{Lang::T('Waiting for M-Pesa confirmation...')}</p>
+
+      <!-- Prompt dismissed / never appeared: issue a fresh STK push against
+           the same transaction instead of leaving the guest stuck here. -->
+      <form action="{Text::url('mpesa_guest/resend/')}{$trx.id}" method="post" style="margin-top:14px; margin-bottom:0;">
+        <input type="hidden" name="csrf_token" value="{$csrf_token}">
+        <button type="submit" class="btn-action btn-copy" style="margin-bottom:0;">
+          &#x1F504; {Lang::T('No prompt on your phone? Send it again')}
+        </button>
+      </form>
+      <a href="{Text::url('mpesa_guest/retrieve')}" class="btn-action btn-copy" style="margin-top:10px;">
+        {Lang::T('Click here if the payment was successful but did not get a voucher')}
+      </a>
     </div>
   </div>
 
@@ -108,24 +120,18 @@
     <div class="status-card-header" style="background:rgba(67,160,71,0.2);">&#x2705; {Lang::T('Payment Successful')}</div>
     <div class="status-card-body">
       <div class="success-icon">&#x1F389;</div>
-      <p class="status-text">{Lang::T('Your payment has been received.')}</p>
-      <p class="status-subtext" id="autoAuthMsg">{Lang::T('Connecting your device automatically...')}</p>
+      <p class="status-subtext" id="autoAuthMsg">{Lang::T('Tap Connect when you are ready to go online.')}</p>
 
-      <div id="credentialsBox" class="cred-box hidden">
+      <div id="voucherBox" class="cred-box hidden" style="text-align:center;">
         <div class="cred-row">
-          <span class="cred-label">{Lang::T('Username')}</span>
-          <span class="cred-value" id="usernameText"></span>
-        </div>
-        <div class="cred-row">
-          <span class="cred-label">{Lang::T('Password')}</span>
-          <span class="cred-value" id="passwordText"></span>
+          <span class="cred-label">{Lang::T('Voucher')}</span>
+          <span class="cred-value" id="voucherText" style="font-size:1.3rem; letter-spacing:2px;"></span>
         </div>
       </div>
 
-      <a id="continueBtn" href="#" class="btn-action btn-continue hidden">&#x1F310; {Lang::T('Continue to Internet')}</a>
-      <button type="button" class="btn-action btn-copy hidden" id="copyBtn">&#x1F4CB; {Lang::T('Copy Credentials')}</button>
-      <button type="button" class="btn-action btn-retry hidden" id="retryBtn">&#x1F504; {Lang::T('Retry Connection')}</button>
-      <p class="retry-hint hidden" id="retryHint">{Lang::T('If auto-connect did not work, tap Retry or use the credentials above to login manually.')}</p>
+      <a id="connectBtn" href="#" class="btn-action btn-continue hidden">&#x1F310; {Lang::T('Connect to Internet')}</a>
+      <button type="button" class="btn-action btn-copy hidden" id="copyBtn">&#x1F4CB; {Lang::T('Copy voucher')}</button>
+      <p class="retry-hint" id="retryHint">{Lang::T('After connecting your device is online. You can reopen this page later with your voucher.')}</p>
     </div>
   </div>
 
@@ -136,6 +142,7 @@
       <div class="failed-icon">&#x1F625;</div>
       <p class="status-text" id="failedText">{Lang::T('Payment could not be completed.')}</p>
       <a href="{Text::url('mpesa_guest/init')}" class="btn-action btn-tryagain">&#x21BA; {Lang::T('Try Again')}</a>
+      <a href="{Text::url('mpesa_guest/retrieve')}" class="btn-action btn-copy">&#x1F50D; {Lang::T('Already paid? Get your voucher')}</a>
     </div>
   </div>
 
@@ -153,40 +160,57 @@
     var trxId = {$trx.id};
     var checkUrl = '{Text::url('mpesa_guest/check/')}' + trxId;
     var originalDst = '{$context.dst|escape:'javascript'}';
+    var serverLinkLogin = '{$context.link_login|escape:'javascript'}';
     var retryCount = 0;
+    var lastCreds = null;
+    var lastLinkLogin = serverLinkLogin;
+
+    // Build the captive-portal login URL. The status countdown is shown
+    // IN-PLACE first (device not yet authenticated, so the portal sheet
+    // persists like login.html); only the Connect tap authenticates, after
+    // which MikroTik redirects to originalDst for a clean portal close.
+    function buildLoginUrl(linkLogin, user, pass) {
+        var url = linkLogin
+            + '?username=' + encodeURIComponent(user)
+            + '&password=' + encodeURIComponent(pass);
+        if (originalDst) {
+            url += '&dst=' + encodeURIComponent(originalDst);
+        }
+        return url;
+    }
 
     function showSuccess(data) {
         document.getElementById('waitingPanel').classList.add('hidden');
         document.getElementById('successPanel').classList.remove('hidden');
 
+        var linkLogin = data.link_login || serverLinkLogin;
         if (data.username && data.password) {
-            document.getElementById('usernameText').textContent = data.username;
-            document.getElementById('passwordText').textContent = data.password;
-            document.getElementById('credentialsBox').classList.remove('hidden');
-            document.getElementById('copyBtn').classList.remove('hidden');
+            lastCreds = { u: data.username, p: data.password };
+            lastLinkLogin = linkLogin;
 
+            // Single-string voucher: show only the code (username == password).
+            document.getElementById('voucherText').textContent = data.username;
+            document.getElementById('voucherBox').classList.remove('hidden');
+            document.getElementById('copyBtn').classList.remove('hidden');
             document.getElementById('copyBtn').addEventListener('click', function () {
-                var text = 'Username: ' + data.username + '\nPassword: ' + data.password;
                 if (navigator.clipboard) {
-                    navigator.clipboard.writeText(text)
-                        .then(function() { alert('{Lang::T('Credentials copied')}'); })
-                        .catch(function() { alert(text); });
+                    navigator.clipboard.writeText(data.username)
+                        .then(function() { alert('{Lang::T('Voucher copied')}'); })
+                        .catch(function() { alert(data.username); });
                 } else {
-                    alert(text);
+                    alert(data.username);
                 }
             });
         }
 
-        if (originalDst) {
-            var continueBtn = document.getElementById('continueBtn');
-            continueBtn.href = originalDst;
-            continueBtn.classList.remove('hidden');
-            document.getElementById('autoAuthMsg').textContent = '{Lang::T('Redirecting you to the internet...')}';
-            setTimeout(function() { window.location.href = originalDst; }, 3000);
+        // Manual connect — no auto-navigation, so the status cannot flash away.
+        if (linkLogin && data.username && data.password) {
+            document.getElementById('connectBtn').href =
+                buildLoginUrl(linkLogin, data.username, data.password);
+            document.getElementById('connectBtn').classList.remove('hidden');
         } else {
-            document.getElementById('autoAuthMsg').textContent = '{Lang::T('Your device should now be connected.')}';
-            document.getElementById('retryBtn').classList.remove('hidden');
-            document.getElementById('retryHint').classList.remove('hidden');
+            document.getElementById('autoAuthMsg').textContent =
+                '{Lang::T('Open the hotspot login page and paste your voucher to connect.')}';
         }
     }
 
@@ -201,7 +225,13 @@
                     document.getElementById('failedPanel').classList.remove('hidden');
                     document.getElementById('failedText').textContent = data.message || '{Lang::T('Payment could not be completed')}';
                 } else {
-                    document.getElementById('statusText').textContent = data.message || '{Lang::T('Waiting for M-Pesa confirmation...')}';
+                    var waitMsg = data.message || '{Lang::T('Waiting for M-Pesa confirmation...')}';
+                    // The push is unanswered for over a minute: tell the guest
+                    // what to do instead of a silent spinner (2-min tolerance).
+                    if (retryCount >= 12) {
+                        waitMsg = '{Lang::T('Still waiting — open the M-Pesa prompt on your phone and enter your PIN. If it is not there, tap "Send it again".')}';
+                    }
+                    document.getElementById('statusText').textContent = waitMsg;
                     retryCount++;
                     var delay = retryCount < 6 ? 5000 : 10000;
                     setTimeout(checkStatus, delay);
@@ -211,21 +241,6 @@
                 setTimeout(checkStatus, 8000);
             });
     }
-
-    document.getElementById('retryBtn').addEventListener('click', function() {
-        if (originalDst) {
-            window.location.href = originalDst;
-        } else {
-            document.getElementById('autoAuthMsg').textContent = '{Lang::T('Retrying connection...')}';
-            fetch(checkUrl)
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (data.status === 'paid') {
-                        document.getElementById('autoAuthMsg').textContent = '{Lang::T('Reconnect request sent.')}';
-                    }
-                });
-        }
-    });
 
     setTimeout(checkStatus, 3000);
 })();

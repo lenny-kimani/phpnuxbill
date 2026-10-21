@@ -23,6 +23,48 @@ if (empty($action)) {
 
 $code = 200;
 
+/**
+ * Send a RADIUS Disconnect-Request (PoD) to the NAS so a device whose
+ * package time/data has ended is actually kicked off, rather than left with a
+ * black-holed session that looks like a network fault.
+ *
+ * @param string $username RADIUS username to disconnect.
+ * @param string $nasIp    NAS IP that owns the session.
+ * @param string $framedIp Framed-IP-Address of the active session (optional).
+ * @param string $secret   NAS shared secret.
+ * @param int    $port     NAS CoA/Disconnect port (default 3799).
+ */
+function radius_disconnect_user($username, $nasIp, $framedIp, $secret, $port = 3799)
+{
+    if (empty($nasIp) || empty($secret) || empty($username)) {
+        return;
+    }
+    $framedIp = empty($framedIp) ? '' : $framedIp;
+    @shell_exec("printf 'User-Name = \"$username\"\\nFramed-IP-Address = $framedIp\\n' | radclient -x " . escapeshellarg(trim($nasIp)) . ":$port disconnect '" . escapeshellarg(trim($secret)) . "' 2>&1");
+}
+
+/**
+ * Look up the RADIUS shared secret for a NAS IP from the nas table.
+ *
+ * @param string $nasIp NAS IP address.
+ * @return string Secret, or empty string if not found.
+ */
+function getNasSecret($nasIp)
+{
+    if (empty($nasIp)) {
+        return '';
+    }
+    $nas = ORM::for_table('nas')->where('nasname', $nasIp)->find_one();
+    if ($nas && !empty($nas['secret'])) {
+        return (string) $nas['secret'];
+    }
+    // The nas table is empty in this deployment, while the shared secret is
+    // provided to this container (clients.conf uses the same value). Without
+    // this fallback every Disconnect-Request silently no-ops and the MikroTik
+    // never sees a deauthentication packet.
+    return (string) (getenv('RADIUS_SECRET') ?: '');
+}
+
 //debug
 // if (!empty($action)) {
 //     file_put_contents("$action.json", json_encode([
@@ -190,6 +232,15 @@ try {
                             }
                         }
                     }
+                    if (!$c) {
+                        if (Password::chap_verify($username, $CHAPassword, $CHAPchallenge)) {
+                            $isVoucher = true;
+                            $password = $username;
+                        } else if (Password::chap_verify('', $CHAPassword, $CHAPchallenge)) {
+                            $isVoucher = true;
+                            $password = $username;
+                        }
+                    }
                 }
             } else {
                 if (!empty($username) && empty($password)) {
@@ -236,7 +287,7 @@ try {
             } else {
                 if ($isVoucher) {
                     $username = Text::alphanumeric($username, "-_.,");
-                    $v = ORM::for_table('tbl_voucher')->whereRaw("BINARY code = '$username' AND routers = 'radius'")->find_one();
+                    $v = ORM::for_table('tbl_voucher')->whereRaw("BINARY code = '$username'")->find_one();
                     if ($v) {
                         if ($v['status'] == 0) {
                             if (Package::rechargeUser(0, $v['routers'], $v['id_plan'], "Voucher", $username)) {
@@ -321,6 +372,14 @@ try {
                         $attrs['reply:Mikrotik-Total-Limit'] = Text::convertDataUnit($plan['data_limit'], $plan['data_unit']) - $totalUsage;
                         if ($attrs['reply:Mikrotik-Total-Limit'] < 0) {
                             $attrs['reply:Mikrotik-Total-Limit'] = 0;
+                            // Kick the device so it does not sit with a dead session.
+                            radius_disconnect_user(
+                                $username,
+                                _post('nasIpAddress'),
+                                _post('framedIPAddress'),
+                                getNasSecret(_post('nasIpAddress')),
+                                3799
+                            );
                             show_radius_result(["control:Auth-Type" => "Accept", 'Reply-Message' => 'You have exceeded your data limit.'], 401);
                         }
                     }
@@ -389,6 +448,14 @@ function process_radiust_rest($tur, $code)
     $timeexp = strtotime($tur['expiration'] . ' ' . $tur['time']);
   // --- Kode pengecekan masa aktif ---
     if ($timeexp < time()) {
+        // Drop the live session so the device does not linger with a dead connection.
+        radius_disconnect_user(
+            $tur['username'],
+            _post('nasIpAddress'),
+            _post('framedIPAddress'),
+            getNasSecret(_post('nasIpAddress')),
+            3799
+        );
         show_radius_result([
             "control:Auth-Type" => "Reject",
             "reply:Reply-Message" => "Sorry, your account's active period has expired (" . $tur['expiration'] . ")"
@@ -429,8 +496,11 @@ function process_radiust_rest($tur, $code)
                 $timelimit = $plan['time_limit'] * 60 * 60;
             else
                 $timelimit = $plan['time_limit'] * 60;
+            $attrs['reply:Session-Timeout'] = $timelimit;
             $attrs['reply:Max-All-Session'] = $timelimit;
             $attrs['reply:Expire-After'] = $timelimit;
+            $sessionEnd = time() + $timelimit;
+            $attrs['reply:WISPr-Session-Terminate-Time'] = date('Y-m-d', $sessionEnd) . 'T' . date('H:i:sP', $sessionEnd);
         } else if ($plan['limit_type'] == "Data_Limit") {
             if ($plan['data_unit'] == 'GB')
                 $datalimit = $plan['data_limit'] . "000000000";
@@ -448,10 +518,13 @@ function process_radiust_rest($tur, $code)
                 $datalimit = $plan['data_limit'] . "000000000";
             else
                 $datalimit = $plan['data_limit'] . "000000";
+            $attrs['reply:Session-Timeout'] = $timelimit;
             $attrs['reply:Max-All-Session'] = $timelimit;
             $attrs['reply:Max-Data'] = $datalimit;
             $attrs['reply:Mikrotik-Recv-Limit-Gigawords'] = $datalimit;
             $attrs['reply:Mikrotik-Xmit-Limit-Gigawords'] = $datalimit;
+            $sessionEnd = time() + $timelimit;
+            $attrs['reply:WISPr-Session-Terminate-Time'] = date('Y-m-d', $sessionEnd) . 'T' . date('H:i:sP', $sessionEnd);
         }
     }
     $result = array_merge([

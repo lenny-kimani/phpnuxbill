@@ -142,6 +142,122 @@ foreach ($d as $ds) {
     }
 }
 
+/**
+ * Shared RADIUS secret for a NAS IP: nas row first, then the container env
+ * (the nas table is empty in this deployment; clients.conf uses the same
+ * RADIUS_SECRET value).
+ */
+function cron_radius_secret($nasIp)
+{
+    $nas = ORM::for_table('nas')->where('nasname', $nasIp)->find_one();
+    if ($nas && !empty($nas['secret'])) {
+        return (string) $nas['secret'];
+    }
+    return (string) (getenv('RADIUS_SECRET') ?: '');
+}
+
+/**
+ * Send a RADIUS Disconnect-Request to the NAS and return the first line of
+ * the radclient output (evidence line), or '' when nothing could be sent.
+ */
+function cron_radius_kick($username, $nasIp, $framedIp)
+{
+    $secret = cron_radius_secret($nasIp);
+    if (empty($nasIp) || empty($secret) || empty($username)) {
+        return '';
+    }
+    $out = @shell_exec(
+        "printf 'User-Name = \"$username\"\\nFramed-IP-Address = \"$framedIp\"\\n' | radclient -x "
+            . escapeshellarg(trim($nasIp)) . ':3799 disconnect ' . escapeshellarg($secret) . ' 2>&1'
+    );
+    $lines = explode("\n", trim((string) $out));
+    return trim($lines[0]);
+}
+
+// --- Automatic deauthentication --------------------------------------------
+// Drop RADIUS sessions whose package ended or whose plan time/data cap has
+// been exceeded — without this, a session survives its package until the
+// NAS itself terminates it (Session-Timeout), and the MikroTik never
+// receives a Disconnect-Request from this side. Runs before the
+// frrest_interim_update guard so freshly-stale rows are still visible; it
+// also considers recent Stop rows because that guard marks rows Stop without
+// sending any packet.
+$kicked = 0;
+$recentSessions = ORM::for_table('rad_acct')
+    // Compare against the same clock that WRITES dateAdded (PHP date()),
+    // never SQL NOW() — MySQL timestamp defaults are written server-side and
+    // are the one place where a server clock difference would skew the window.
+    ->whereRaw("dateAdded >= '" . date('Y-m-d H:i:s', time() - 1800) . "'")
+    ->find_many();
+$seenUsernames = [];
+foreach ($recentSessions as $sess) {
+    $uname = $sess['username'];
+    if (isset($seenUsernames[$uname])) {
+        continue;
+    }
+    $seenUsernames[$uname] = true;
+    try {
+        $tur = ORM::for_table('tbl_user_recharges')
+            ->where('username', $uname)
+            ->order_by_desc('id')
+            ->find_one();
+        $kick = false;
+        $reason = '';
+        if (!$tur || $tur['status'] != 'on') {
+            $kick = true;
+            $reason = 'package inactive';
+        } elseif (strtotime($tur['expiration'] . ' ' . $tur['time']) < time()) {
+            $kick = true;
+            $reason = 'package expired';
+        } else {
+            $plan = ORM::for_table('tbl_plans')->find_one($tur['plan_id']);
+            if ($plan && $plan['typebp'] == 'Limited') {
+                $isActive = in_array($sess['acctstatustype'], ['Start', 'Interim-Update']);
+                if (
+                    in_array($plan['limit_type'], ['Time_Limit', 'Both_Limit'])
+                    && intval($plan['time_limit']) > 0
+                    && $isActive
+                ) {
+                    $cap = intval($plan['time_limit']) * (($plan['time_unit'] == 'Hrs') ? 3600 : 60);
+                    $sessionTime = intval($sess['acctsessiontime']);
+                    // Without Interim-Update, acctsessiontime stays at its Start
+                    // value, so also measure the row's wall-clock age (+grace
+                    // for the 5-minute cron cadence).
+                    $wallAge = time() - strtotime($sess['dateAdded']);
+                    if ($sessionTime >= $cap || $wallAge >= $cap + 90) {
+                        $kick = true;
+                        $reason = 'time limit reached';
+                    }
+                }
+                if (
+                    in_array($plan['limit_type'], ['Data_Limit', 'Both_Limit'])
+                    && intval($plan['data_limit']) > 0
+                    && $isActive
+                ) {
+                    $capBytes = Text::convertDataUnit($plan['data_limit'], $plan['data_unit']);
+                    $usage = intval($sess['acctoutputoctets']) + intval($sess['acctinputoctets']);
+                    if ($usage >= $capBytes) {
+                        $kick = true;
+                        $reason = 'data limit reached';
+                    }
+                }
+            }
+        }
+        if ($kick) {
+            $result = cron_radius_kick($uname, $sess['nasipaddress'], $sess['framedipaddress']);
+            $kicked++;
+            echo 'KICK ' . $uname . ' (' . $reason . '): '
+                . ($result !== '' ? $result : 'skipped: missing NAS IP or RADIUS secret') . "\n";
+        }
+    } catch (Throwable $e) {
+        _log($e->getMessage());
+        echo 'Kick error: ' . $e->getMessage() . "\n";
+    }
+}
+if ($kicked > 0) {
+    echo "Deauthenticated $kicked session(s)\n";
+}
+
 //Cek interim-update radiusrest
 if ($config['frrest_interim_update'] != 0) {
 
