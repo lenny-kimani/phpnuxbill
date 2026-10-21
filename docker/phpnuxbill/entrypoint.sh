@@ -7,7 +7,10 @@ if [ ! -f "$CONFIG_FILE" ]; then
     cat > "$CONFIG_FILE" <<EOF
 <?php
 \$protocol = (!empty(\$_SERVER['HTTPS']) && \$_SERVER['HTTPS'] !== 'off' ||
-             (isset(\$_SERVER['SERVER_PORT']) && \$_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
+             (isset(\$_SERVER['SERVER_PORT']) && \$_SERVER['SERVER_PORT'] == 443) ||
+             (!empty(\$_SERVER['HTTP_X_FORWARDED_PROTO']) && \$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
+             (!empty(\$_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower(\$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') ||
+             (!empty(\$_SERVER['HTTP_CF_VISITOR']) && stripos(\$_SERVER['HTTP_CF_VISITOR'], 'https') !== false)) ? "https://" : "http://";
 \$host = isset(\$_SERVER['HTTP_HOST']) ? \$_SERVER['HTTP_HOST'] : (isset(\$_SERVER['SERVER_NAME']) ? \$_SERVER['SERVER_NAME'] : 'localhost');
 \$baseDir = rtrim(dirname(\$_SERVER['SCRIPT_NAME']), '/\\\\');
 define('APP_URL', \$protocol . \$host . \$baseDir);

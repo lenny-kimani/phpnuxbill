@@ -38,6 +38,7 @@ services:
       RADIUS_DB_NAME: ${RADIUS_DB_NAME:-${DB_NAME}}
       RADIUS_DB_USER: ${RADIUS_DB_USER:-${DB_USER}}
       RADIUS_DB_PASSWORD: ${RADIUS_DB_PASSWORD:-${DB_PASSWORD}}
+      RADIUS_SECRET: ${RADIUS_SECRET}
       TZ: Africa/Nairobi
     depends_on:
       rofa-mysql:
@@ -54,17 +55,12 @@ services:
     image: rofa-freeradius:latest
     container_name: rofa-freeradius
     restart: unless-stopped
-    ports:
-      - "1812:1812/udp"
-      - "1813:1813/udp"
-      - "3799:3799/udp"
+    network_mode: host
     environment:
       RADIUS_SECRET: ${RADIUS_SECRET}
       PHPNUXBILL_URL: ${PHPNUXBILL_URL}
     depends_on:
       - rofa-phpnuxbill
-    networks:
-      - rofa_network
 
   rofa-coa:
     build:
