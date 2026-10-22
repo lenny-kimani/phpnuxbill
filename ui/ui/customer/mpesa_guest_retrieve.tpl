@@ -33,6 +33,10 @@
 
         <div class="rv-code" id="rvCode">{$username}</div>
 
+        <a id="connectBtn" href="#" class="rofa-btn rofa-btn-primary hidden" style="width:100%; margin-bottom:10px;">
+          &#x1F310; {Lang::T('Click to connect')}
+        </a>
+
         <button type="button" class="rofa-btn" id="copyBtn"
                 style="width:100%; margin-bottom:10px; background:rgba(105,240,174,0.15); color:#69f0ae; border:1px solid rgba(105,240,174,0.35);">
           &#x1F4CB; {Lang::T('Copy voucher')}
@@ -85,7 +89,26 @@
 {if $found}
 <script>
 (function () {
-    var code = '{$username|escape:'javascript'}';
+    var user = '{$username|escape:'javascript'}';
+    var pass = '{$password|escape:'javascript'}';
+    var code = user;
+    var dstUrl = '{$context.dst|escape:'javascript'}';
+    var loginBase = '{$login_url|escape:'javascript'}';
+
+    // MikroTik hotspot login accepts credentials as GET parameters, so the
+    // voucher can authenticate the session without the guest pasting anything.
+    var connectBtn = document.getElementById('connectBtn');
+    if (connectBtn && loginBase && user) {
+        var connectUrl = loginBase + (loginBase.indexOf('?') >= 0 ? '&' : '?')
+            + 'username=' + encodeURIComponent(user)
+            + '&password=' + encodeURIComponent(pass);
+        if (dstUrl) {
+            connectUrl += '&dst=' + encodeURIComponent(dstUrl);
+        }
+        connectBtn.href = connectUrl;
+        connectBtn.classList.remove('hidden');
+    }
+
     document.getElementById('copyBtn').addEventListener('click', function () {
         if (navigator.clipboard) {
             navigator.clipboard.writeText(code)

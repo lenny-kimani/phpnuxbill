@@ -73,7 +73,7 @@
 
   <div style="text-align:center; margin:14px 0;">
     <a href="{Text::url('mpesa_guest/retrieve')}" class="rofa-sovika">
-      &#x1F50D; {Lang::T('Already paid? Get your voucher')}
+      &#x1F50D; {Lang::T('Click here if you have the mpesa message but did not get an automatic voucher')}
     </a>
   </div>
 

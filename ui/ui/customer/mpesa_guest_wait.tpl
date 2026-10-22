@@ -142,7 +142,7 @@
       <div class="failed-icon">&#x1F625;</div>
       <p class="status-text" id="failedText">{Lang::T('Payment could not be completed.')}</p>
       <a href="{Text::url('mpesa_guest/init')}" class="btn-action btn-tryagain">&#x21BA; {Lang::T('Try Again')}</a>
-      <a href="{Text::url('mpesa_guest/retrieve')}" class="btn-action btn-copy">&#x1F50D; {Lang::T('Already paid? Get your voucher')}</a>
+      <a href="{Text::url('mpesa_guest/retrieve')}" class="btn-action btn-copy">&#x1F50D; {Lang::T('Click here if you have the mpesa message but did not get an automatic voucher')}</a>
     </div>
   </div>
 
