@@ -18,7 +18,9 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
+      start_period: 120s
       retries: 5
+
 
   rofa-phpnuxbill:
     build:
