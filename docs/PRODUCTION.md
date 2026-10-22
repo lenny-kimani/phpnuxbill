@@ -84,8 +84,14 @@ in this session; 🔲 needs to be done by hand on the target system.
   EAT — set it to `Africa/Nairobi` (or the value you actually want displayed);
   the status page and invoice times render through it.
 - M-Pesa: `mpesa_mode` (sandbox for tests → **production** for go-live),
-  consumer key/secret, passkey, shortcode, business type, allowed IPs (only
-  if you want to allow-list Safaricom callback IPs).
+  consumer key/secret, passkey, business type, allowed IPs (only if you want
+  to allow-list Safaricom callback IPs):
+  - **Paybill**: put the paybill number in `Shortcode`.
+  - **Till (Buy Goods)**: put the till number in `Shortcode` (sent as
+    `PartyB`) and the Head Office / Store number the Daraja app and passkey
+    are registered under in `Store / Head Office Number` (sent as
+    `BusinessShortCode`). Without the store number Daraja rejects the push
+    with "The agent number and store number entered do not match".
 - Notifications: `user_notification_expired = none` (as set); Telegram
   webhook for system errors if desired.
 
