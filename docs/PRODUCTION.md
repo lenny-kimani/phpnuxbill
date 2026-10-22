@@ -10,16 +10,18 @@ in this session; 🔲 needs to be done by hand on the target system.
 
 ## 1. Docker / Dockploy
 
-- ✅ `Dockerfile.production` (repo root) — production image: same proven PHP
+- ✅ `docker/phpnuxbill/Dockerfile` — production image: same proven PHP
   extension set, nginx config with stdout/stderr logging, PHP error logging to
   stderr, dev artifacts stripped (`staging-export`, `tests`, deploy scripts),
   `HEALTHCHECK`.
 - ✅ `docker/phpnuxbill/nginx.production.conf` — prod site config.
 - ✅ `docker/phpnuxbill/php.production.ini` — PHP overrides.
-- 🔲 In Dockploy, set the **Dockerfile path** to `Dockerfile.production`
-  (the root `Dockerfile` is the outdated upstream PHP 7.4/Apache artifact —
-  do not use it; it has no cron and no `radclient`, so deauth and expiry
-  sweeps silently never run).
+- ✅ `docker-compose.yml` builds that image (`build.dockerfile`), so in Dockploy
+  set the **Compose File Path** to `docker-compose.yml` — never to a Dockerfile,
+  which Dokploy would try to parse as YAML.
+  The old root `Dockerfile` (upstream PHP 7.4/Apache artifact, no cron and no
+  `radclient`) was removed; deauth and expiry sweeps depend on `dcron` and
+  `radclient` being present in this image.
 - 🔲 Provide these **environment variables / secrets** (values from the local
   `.env` — never commit `.env`; it is gitignored):
 
